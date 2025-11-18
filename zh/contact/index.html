@@ -41,13 +41,30 @@
       "alternateName": "朱闪闪",
       "url": "https://sszhu.github.io",
       "jobTitle": "Computational Scientist Lead & Associate Director",
-      "email": "mailto:shanshan.zhu@sanofi.com",
+      "email": "mailto:shanshan [dot] zhu [at] sanofi [dot] com",
       "sameAs": [
         "http://scholar.google.com/citations?hl=en&user=cfrySY4AAAAJ",
         "https://github.com/sszhu",
         "https://www.linkedin.com/in/shanshan-z-36b0177a"
       ]
     }
+    </script>
+    <script>
+      // Reconstruct email links from obfuscated markup (optional usage)
+      document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('[data-local][data-domain]').forEach(el => {
+          const local = el.getAttribute('data-local');
+          const domain = el.getAttribute('data-domain');
+          if(local && domain){
+            const full = local + '@' + domain;
+            const a = document.createElement('a');
+            a.href = 'mailto:' + full;
+            a.textContent = full;
+            el.textContent = '';
+            el.appendChild(a);
+          }
+        });
+      });
     </script>
   </head>
   <body>
@@ -74,14 +91,14 @@
       <h1 id="联系方式">联系方式</h1>
 
 <ul>
-  <li>邮箱（工作）： <a href="mailto:shanshan.zhu@sanofi.com">shanshan.zhu@sanofi.com</a></li>
-  <li>邮箱（个人）： <a href="mailto:sszhu1007@gmail.com">sszhu1007@gmail.com</a></li>
+  <li>邮箱（工作）： shanshan.zhu [at] sanofi [dot] com</li>
+  <li>邮箱（个人）： sszhu1007 [at] gmail [dot] com</li>
   <li>学术主页： <a href="http://scholar.google.com/citations?hl=en&amp;user=cfrySY4AAAAJ">Google Scholar</a></li>
 </ul>
 
 <p>合作方向：计算生物学、医学影像分析、AI 与转化医学。</p>
 
-<p>后续可添加在线表单（Formspree / Netlify）以便快速留言。</p>
+<p>邮箱已采用防垃圾邮件格式，请手动复制。后续可添加在线表单（Formspree / Netlify）以便快速留言。</p>
 
     </main>
     <footer>

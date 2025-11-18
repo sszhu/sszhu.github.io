@@ -41,13 +41,30 @@
       "alternateName": "朱闪闪",
       "url": "https://sszhu.github.io",
       "jobTitle": "Computational Scientist Lead & Associate Director",
-      "email": "mailto:shanshan.zhu@sanofi.com",
+      "email": "mailto:shanshan [dot] zhu [at] sanofi [dot] com",
       "sameAs": [
         "http://scholar.google.com/citations?hl=en&user=cfrySY4AAAAJ",
         "https://github.com/sszhu",
         "https://www.linkedin.com/in/shanshan-z-36b0177a"
       ]
     }
+    </script>
+    <script>
+      // Reconstruct email links from obfuscated markup (optional usage)
+      document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('[data-local][data-domain]').forEach(el => {
+          const local = el.getAttribute('data-local');
+          const domain = el.getAttribute('data-domain');
+          if(local && domain){
+            const full = local + '@' + domain;
+            const a = document.createElement('a');
+            a.href = 'mailto:' + full;
+            a.textContent = full;
+            el.textContent = '';
+            el.appendChild(a);
+          }
+        });
+      });
     </script>
   </head>
   <body>
@@ -76,12 +93,12 @@
 <p>计算生物学与转化科学专家，专注多组学整合、医学影像分析与 AI 驱动精准医疗。</p>
 
 <ul>
-  <li>邮箱： <a href="mailto:shanshan.zhu@sanofi.com">shanshan.zhu@sanofi.com</a> · <a href="mailto:sszhu1007@gmail.com">sszhu1007@gmail.com</a></li>
+  <li>邮箱： shanshan.zhu [at] sanofi [dot] com · sszhu1007 [at] gmail [dot] com</li>
   <li>Google Scholar： <a href="http://scholar.google.com/citations?hl=en&amp;user=cfrySY4AAAAJ">学术主页</a></li>
 </ul>
 
 <h2 id="简介">简介</h2>
-<p>拥有超过十年制药研发经验（靶点与生物标志物发现、机制研究、患者分层、适应症拓展、数字产品设计与决策支持），以及十年学术研究积累（18 篇同行评议论文，&gt;3000 引用）。</p>
+<p>拥有超过十年制药研发经验（靶点与生物标志物发现、机制研究、患者分层、适应症拓展、数字产品设计与决策支持），以及十年学术研究积累（18 篇同行评议论文，&gt;3000 引用）。邮箱已做防垃圾邮件处理（请手动复制）。</p>
 
 <h2 id="导航">导航</h2>
 <ul>
