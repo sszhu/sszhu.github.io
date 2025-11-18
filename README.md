@@ -1,84 +1,93 @@
 # Personal Website — Shanshan Zhu
 
-This repository hosts a personal website powered by GitHub Pages (Jekyll with a remote theme). It highlights experience, publications, and selected projects.
+Private source for a bilingual (EN + 中文) personal site built with Jekyll and published via GitHub Pages. The site presents CV, publications, selected projects, and posts with a clean, content‑first structure. This repository is the editable source; the public deployment (e.g. `sszhu.github.io`) may contain only generated static files when using a two‑repo model.
 
-## Structure
-- `_config.yml` — Site configuration (title, theme, plugins, social links).
-- `index.md` — Landing page with highlights and navigation.
-- `cv.md` — Structured CV.
-- `publications.md` — Selected publications.
-- `projects.md` — Selected projects.
-- `contact.md` — Contact information.
-- `_posts/` — Blog posts (optional).
-- `assets/` — Images and static assets.
+## Features
+- Bilingual content (`/` and `/zh/` trees)
+- Project collection in `_projects/`
+- Markdown-based content, easy diff & versioning
+- Jekyll remote theme + plugins (configured in `_config.yml`)
+- Optional blog via `_posts/`
+- Private source + public generated output workflow (GitHub Actions)
 
-## Quick Start
+## Tech Stack
+- Ruby / Jekyll (GitHub Pages compatible build)
+- GitHub Actions for deployment (optional two-repo pattern)
+- Markdown for all content; YAML front matter for metadata
 
-1. Create a new GitHub repository.
-   - For a personal site: name it `<your-username>.github.io`.
-   - For a project site: any name (e.g., `ss-image`).
+## Directory Overview
+- `_config.yml` — Site + theme + plugin config
+- `_layouts/` — Base HTML templates (e.g. `default.html`)
+- `index.md`, `cv.md`, `publications.md`, `projects.md`, `contact.md` — English top-level pages
+- `zh/` — Chinese counterparts (`index.md`, `cv.md`, `publications.md`, etc.)
+- `_posts/` — Blog posts (`YYYY-MM-DD-title.md`)
+- `_projects/` — Individual project pages with front matter
+- `assets/img/` — Images
+- `Gemfile` — Ruby dependencies
 
-2. Push this folder’s contents to the repository.
+## Prerequisites (Local Development)
+Install a recent Ruby (>= 3.1 recommended) and Bundler.
+```zsh
+gem install bundler
+```
 
-3. Enable GitHub Pages.
-   - Go to Settings → Pages → Build and deployment.
-   - Source: `Deploy from a branch` → Branch: `main` → Folder: `/root`.
-   - Save. GitHub will build and publish at `https://<your-username>.github.io/` or `https://<your-username>.github.io/<repo>/`.
-
-4. Optional: Set a custom domain.
-   - Buy a domain (e.g., `shanshanzhu.com`).
-   - In Settings → Pages, add the domain.
-   - Configure DNS (CNAME to `<your-username>.github.io`).
-
-5. Customize.
-   - Edit `_config.yml` (title, social links, description).
-   - Add your photo to `assets/img/` and link it on `index.md`.
-   - Add more posts under `_posts/` following `YYYY-MM-DD-title.md`.
-
-## Two-Repo Deployment Model (Private Source + Public Site)
-
-If you want to keep source code private while publishing a public site:
-
-1. Create a private source repository (e.g. `personal-site-src`).
-2. Keep the public repository named `sszhu.github.io` (must remain public for user site).
-3. Copy this scaffold into the private source repo and commit changes there.
-4. In the private repo, create a Personal Access Token (PAT) with `repo` scope and add it as a secret named `PUBLISH_TOKEN`.
-5. Add the workflow file `.github/workflows/deploy.yml` (copy from this repo) to the private source repo.
-6. Update the `DEPLOY_REPO` value in the workflow if your public repo differs.
-7. On each push to `main` of the private repo, the workflow will:
-   - Build the Jekyll site into `_site/`
-   - Push the static output directly to `sszhu/sszhu.github.io@main`.
-
-Result: The public repo only contains generated static files; authorship history and drafts stay private.
-
-### Required Secret
-`PUBLISH_TOKEN`: Personal Access Token with `repo` scope (classic) or a fine-grained token granting write access to `sszhu.github.io`.
-
-### Local Development (Private Source)
+## Run Locally
 ```zsh
 bundle install
 bundle exec jekyll serve --livereload
 ```
+Visit `http://127.0.0.1:4000` (or `http://localhost:4000`).
 
-### Notes
-- Do not make `sszhu.github.io` private; GitHub Pages user sites require public visibility for open access.
-- For staging, add a `staging` branch and only merge to `main` when ready.
-- Bilingual: Chinese pages live under `zh/`.
+## Updating Content
+- Add a publication: edit `publications.md` (consider consistent citation style).
+- Add a project: create a new markdown file in `_projects/` with front matter (e.g. `title`, `description`, `tags`).
+- Add a post: place `YYYY-MM-DD-title.md` in `_posts/` with `layout: post` (if theme supports) and appropriate categories.
+- Add Chinese translation: mirror the file under `zh/` maintaining similar front matter keys for future i18n enhancements.
+- Images: store under `assets/img/` and reference with relative paths.
 
-## Bilingual Content
-- English root pages: `/`
-- Chinese pages: `/zh/`
-- Navigation includes language toggle.
-- For translated posts, you can mirror them under `zh/_posts/` (configure if needed).
+## Two-Repo Deployment (Optional)
+Keep this repo private while publishing publicly:
+1. Private source repo (this one): `personal-site-src`.
+2. Public Pages repo: `sszhu/sszhu.github.io` (must stay public for user site).
+3. Add workflow `.github/workflows/deploy.yml` that builds and pushes `_site/` contents to the public repo.
+4. Create a PAT with suitable write scope; save as secret `PUBLISH_TOKEN`.
+5. Push to `main` here → Action builds & force-updates static site in public repo.
 
-## Future Enhancements
-- Analytics (Plausible / GA) via keys in `_config.yml`.
-- Contact form (Formspree) when `features.contact_form` is enabled.
-- Structured data extensions per project page.
-- Expanded project collection (`_projects/`).
+### Required Secret
+`PUBLISH_TOKEN` — PAT (classic `repo` scope or fine‑grained with write to `sszhu.github.io`).
 
-## Local Preview (optional)
-If you want to preview locally, install Ruby and Jekyll, then serve. GitHub will build for you even if you don’t.
+## Single-Repo Deployment (Simpler Alternative)
+If you do NOT need private history, place source directly in a public `<username>.github.io` repository and enable GitHub Pages (Branch: `main`, Folder: `/root`).
+
+## Custom Domain
+1. Purchase domain (e.g. `shanshanzhu.com`).
+2. Add domain under Settings → Pages.
+3. Configure DNS: `CNAME` pointing to `<username>.github.io`. (Optional: add `A` records for apex with GitHub IPs.)
+
+## Internationalization Notes
+- Current approach: duplicate page trees (`/` and `/zh/`).
+- Future enhancement: central language toggle + shared metadata; can add `lang:` key in front matter.
+- For posts: optionally create `zh/_posts/` parallel structure.
+
+## Extending
+- Analytics: add Plausible or GA snippet via `_config.yml` includes.
+- Contact form: integrate Formspree or similar in `contact.md`.
+- Structured data: add JSON-LD blocks in layout for publications/projects.
+- SEO: set `title`, `description`, `url`, `lang` in `_config.yml`.
+
+## Maintenance Tips
+- Keep Ruby + Bundler updated: `bundle update` periodically.
+- Pin theme/plugin versions in `Gemfile` to avoid unexpected build diffs.
+- Use feature branches; merge to `main` after local preview.
+
+## Deployment Verification
+After a workflow run, confirm:
+- Public repo updated (latest commit message matches Action).
+- Site loads with expected content and language toggle.
+- No missing asset 404s in developer console.
 
 ## License
-Content © Shanshan Zhu. Code is provided for site scaffolding; reuse with attribution.
+Content © Shanshan Zhu. Site scaffold code may be reused with attribution.
+
+## Attribution
+Feel free to adapt this structure; please retain credit where practical.
