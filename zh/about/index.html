@@ -68,26 +68,34 @@
     </script>
   </head>
   <body>
+    <a class="skip-link" href="#main" style="position:absolute;left:-999px;top:auto;width:1px;height:1px;overflow:hidden;">Skip to content</a>
     <header>
       <h1><a href="/">Shanshan Zhu</a></h1>
       <p class="tagline">Computational Biology • Multi-Omics • Imaging Analytics • Translational Science</p>
       <nav aria-label="Primary">
-        <a href="/cv">CV</a>
-        <a href="/publications">Publications</a>
-        <a href="/projects">Projects</a>
-        <a href="/contact">Contact</a>
-        <a href="/feed.xml">RSS</a>
-        
-        <span style="margin-left:1rem;">
+        <ul style="list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.75rem;">
+          <li><a href="/about">About</a></li>
+          <li><a href="/cv">CV</a></li>
+          <li><a href="/publications">Publications</a></li>
+          <li><a href="/projects">Projects</a></li>
+          <li><a href="/contact">Contact</a></li>
+          <li><a href="/feed.xml">RSS</a></li>
           
-            <a href="/" lang="en" hreflang="en">English</a>
+            <li>
+              
+                <a href="/" lang="en" hreflang="en" aria-label="Switch to English">EN</a>
+              
+            </li>
           
-        </span>
-        
+        </ul>
       </nav>
       <hr />
     </header>
-    <main>
+    <style>
+      .skip-link:focus{position:static;width:auto;height:auto;padding:.5rem 1rem;background:#000;color:#fff;}
+      nav a{white-space:nowrap;}
+    </style>
+    <main id="main">
       <h1 id="关于">关于</h1>
 
 <p>我专注于将多维生物医学数据（多组学、医学影像、真实世界数据）转化为可操作洞察，从而支持药物发现与精准医学。</p>

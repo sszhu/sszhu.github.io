@@ -38,6 +38,21 @@ bundle exec jekyll serve --livereload
 ```
 Visit `http://127.0.0.1:4000` (or `http://localhost:4000`).
 
+### Troubleshooting Local Serve (Exit 127)
+An `exit code 127` usually means the `jekyll` binary was not found.
+
+Steps to resolve on macOS:
+```zsh
+brew install ruby            # If system Ruby is outdated
+echo 'export PATH="/opt/homebrew/opt/ruby/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+ruby -v                      # Verify version
+gem install bundler          # Install Bundler if missing
+bundle install               # Install gems declared in Gemfile
+bundle exec jekyll -v        # Confirm Jekyll available via github-pages gem
+bundle exec jekyll serve --livereload
+```
+If problems persist, remove `Gemfile.lock` and rerun `bundle install`.
+
 ## Updating Content
 - Add a publication: edit `publications.md` (consider consistent citation style).
 - Add a project: create a new markdown file in `_projects/` with front matter (e.g. `title`, `description`, `tags`).
