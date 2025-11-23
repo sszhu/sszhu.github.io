@@ -9,11 +9,13 @@ Private source for a bilingual (EN + 中文) personal site built with Jekyll and
 - Jekyll remote theme + plugins (configured in `_config.yml`)
 - Optional blog via `_posts/`
 - Private source + public generated output workflow (GitHub Actions)
+ - Custom global stylesheet (`assets/css/style.css`) with responsive typography & dark-mode fallback
 
 ## Tech Stack
 - Ruby / Jekyll (GitHub Pages compatible build)
 - GitHub Actions for deployment (optional two-repo pattern)
 - Markdown for all content; YAML front matter for metadata
+ - CSS variables for design tokens (see `assets/css/style.css`)
 
 ## Directory Overview
 - `_config.yml` — Site + theme + plugin config
@@ -52,6 +54,25 @@ bundle exec jekyll -v        # Confirm Jekyll available via github-pages gem
 bundle exec jekyll serve --livereload
 ```
 If problems persist, remove `Gemfile.lock` and rerun `bundle install`.
+
+## Styling & Theming (Phase 2)
+- Primary stylesheet: `assets/css/style.css` (defines CSS variables, typography scale, responsive rules, dark-mode preference).
+- Favicon: `assets/img/favicon.svg` referenced in layout head.
+- Open Graph/Twitter meta added in `_layouts/default.html` (update `assets/img/og-image.png` once created).
+- To customize colors: edit `:root` variables in `style.css` (e.g. `--color-accent`).
+- Accessibility: skip link (`.skip-link`) included; nav uses list semantics.
+
+Placeholder to add an OG preview image:
+```zsh
+# Example: generate a 1200x630 PNG placeholder (requires ImageMagick)
+convert -size 1200x630 canvas:white -gravity center -pointsize 72 -fill '#0B63C7' -annotate +0+0 'Shanshan Zhu' assets/img/og-image.png
+```
+
+After adding the image, verify meta tags with:
+```zsh
+open "https://cards-dev.twitter.com/validator"
+open "https://www.linkedin.com/post-inspector/"
+```
 
 ## Updating Content
 - Add a publication: edit `publications.md` (consider consistent citation style).

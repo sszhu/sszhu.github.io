@@ -87,5 +87,6 @@ Focus: Validation and final refinements.
 Progress tracked via TODO list tool in this workspace. Each phase moves tasks from audit → implement → review.
 
 ---
-Current Active Phase: Phase 1 (Content Audit & Foundation)
-Next Step: Audit existing pages and add missing front matter + create about pages.
+Current Active Phase: Phase 2 (Design & UX Refresh)
+Recent Completion: Phase 1 content audit, front matter standardization, About pages added.
+Next Step: Typography/spacing refinement, favicon & OG image assets, responsive checks, accessibility review.
