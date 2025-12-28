@@ -1,31 +1,40 @@
 # Makefile: Micromamba + uv + VS Code "batteries-included" template
 #
 # Includes:
-# - Tool bootstrapping:
-#     - If micromamba missing: curl -L micro.mamba.pm/install.sh | bash
-#     - If uv missing:        curl -fsSL https://astral.sh/uv/install.sh | bash
-# - micromamba env create/update from environment.yml
-# - uv sync --all-extras inside micromamba env
-# - Generates:
-#     - .vscode/settings.json (auto-detects env python path via micromamba info --json + jq)
-#     - .vscode/tasks.json
+# - Tool bootstrapping (opt-in installers):
+#     - micromamba: curl -L micro.mamba.pm/install.sh | bash (ALLOW_CURL_BASH=1)
+#     - uv:        curl -fsSL https://astral.sh/uv/install.sh | bash (ALLOW_CURL_BASH=1)
+#   Or install via Homebrew: brew install micromamba uv
+# - Micromamba environment creation/update from environment.yml
+# - Python dependency sync via uv inside micromamba env
+# - VS Code generation:
+#     - .vscode/settings.json (auto-detects env Python via micromamba run; no jq required)
+#     - .vscode/tasks.json (tasks run inside env via micromamba run -n $(ENV_NAME))
 #     - .vscode/launch.json
+# - Project bootstrapping:
 #     - pyproject.toml (if missing)
 #     - .gitignore (if missing)
-#     - .env (from .env.example if exists; else creates placeholders)
+#     - .env from .env.example or placeholders
 #     - src/<PACKAGE_NAME>/main.py + tests/test_smoke.py (if missing)
-# - Adds common micromamba aliases to ~/.bashrc and ~/.zshrc (idempotent)
+# - Aliases (opt-in): add/remove a marked micromamba alias block in ~/.bashrc and ~/.zshrc
+# - Doctor checks: prerequisites, env Python, VS Code JSON validity, and pyproject.toml (TOML) validity
+# - Dependency management: uv lock/update targets
+# - Portability: OS-aware sed in-place; consistent task execution via micromamba
 #
 # Usage:
 #   make init
 #   make ensure-tools
-#   make env sync vscode aliases
+#   make env sync vscode
 #   make test lint typecheck
+#   WITH_ALIASES=1 make aliases   # optional
+#   make uninstall-aliases        # optional
 #
 # Configure:
 #   make ENV_NAME=llm PACKAGE_NAME=your_project PYTHON_VERSION=3.11 init
 
 SHELL := /bin/bash
+
+.DEFAULT_GOAL := help
 
 ENV_NAME ?= llm
 PYTHON_VERSION ?= 3.11
@@ -42,25 +51,41 @@ LAUNCH_JSON := $(VSCODE_DIR)/launch.json
 ENV_FILE ?= .env
 ENV_EXAMPLE ?= .env.example
 
-.PHONY: help ensure-tools ensure-jq env sync vscode settings tasks launch \
-        pyproject gitignore envfile init test lint typecheck clean \
-        ensure-src-layout aliases
+# Install gating: disallow curl | bash unless explicitly opted-in
+ALLOW_CURL_BASH ?= 0
+WITH_ALIASES ?= 0
+
+# OS detection for portable in-place editing
+UNAME_S := $(shell uname -s)
+SED_INPLACE := sed -i
+ifeq ($(UNAME_S),Darwin)
+	SED_INPLACE := sed -i ''
+endif
+
+.PHONY: help ensure-tools env sync vscode settings tasks launch \
+	pyproject gitignore envfile init test lint typecheck clean \
+	ensure-src-layout aliases uninstall-aliases doctor lock update \
+	ci-setup lint-makefile
 
 help:
 	@echo "Targets:"
 	@echo "  make init           One-shot setup (tools + env + deps + vscode + files + aliases)"
 	@echo "  make ensure-tools   Install micromamba/uv if missing"
+	@echo "  make doctor         Validate prerequisites, env and VS Code JSON"
 	@echo "  make env            Create/update micromamba env from environment.yml"
 	@echo "  make sync           uv sync --all-extras (inside micromamba env)"
 	@echo "  make vscode         Generate .vscode/settings.json + tasks.json + launch.json"
 	@echo "  make pyproject      Generate pyproject.toml if missing"
 	@echo "  make gitignore      Generate .gitignore if missing"
 	@echo "  make envfile        Create .env (from .env.example if exists)"
-	@echo "  make aliases        Add common micromamba aliases to ~/.bashrc and ~/.zshrc"
+	@echo "  make aliases        Add common micromamba aliases to ~/.bashrc and ~/.zshrc (opt-in)"
+	@echo "  make uninstall-aliases Remove installed alias block from shell rc files"
 	@echo "  make test           Run pytest"
 	@echo "  make lint           Run ruff check ."
 	@echo "  make typecheck      Run mypy"
 	@echo "  make clean          Remove caches"
+	@echo "  make ci-setup       CI helper for preinstalled tools"
+	@echo "  make lint-makefile  Detect space-indented recipe lines"
 	@echo ""
 	@echo "Options:"
 	@echo "  ENV_NAME=$(ENV_NAME)"
@@ -70,38 +95,46 @@ help:
 
 # Install tools if not available
 ensure-tools:
-	@set -euo pipefail; \
-	NEED_RESTART=0; \
-	if ! command -v micromamba >/dev/null 2>&1; then \
-	  echo "==> micromamba not found. Installing..."; \
-	  curl -L micro.mamba.pm/install.sh | bash; \
-	  NEED_RESTART=1; \
-	else \
-	  echo "==> micromamba found: $$(command -v micromamba)"; \
-	fi; \
-	if ! command -v uv >/dev/null 2>&1; then \
-	  echo "==> uv not found. Installing..."; \
-	  curl -fsSL https://astral.sh/uv/install.sh | bash; \
-	  NEED_RESTART=1; \
-	else \
-	  echo "==> uv found: $$(command -v uv)"; \
-	fi; \
-	if [[ $$NEED_RESTART -eq 1 ]]; then \
-	  echo ""; \
-	  echo "⚠️  Tools were installed, but your current shell may not have updated PATH."; \
-	  echo "    Restart your terminal (or run: source ~/.zshrc or source ~/.bashrc),"; \
-	  echo "    then re-run: make init"; \
-	  echo ""; \
-	  exit 2; \
-	fi
+		@set -euo pipefail; \
+		NEED_RESTART=0; \
+		if ! command -v micromamba >/dev/null 2>&1; then \
+			echo "==> micromamba not found."; \
+			if [[ "$(ALLOW_CURL_BASH)" -eq 1 ]]; then \
+				echo "Installing micromamba (opt-in via ALLOW_CURL_BASH=1)..."; \
+				curl -L micro.mamba.pm/install.sh | bash; \
+				NEED_RESTART=1; \
+			else \
+				echo "ERROR: micromamba missing. Set ALLOW_CURL_BASH=1 to auto-install, or install manually."; \
+				echo "       Docs: https://mamba.readthedocs.io/ and Homebrew: brew install micromamba"; \
+				exit 1; \
+			fi; \
+		else \
+			echo "==> micromamba found: $$(command -v micromamba)"; \
+		fi; \
+		if ! command -v uv >/dev/null 2>&1; then \
+			echo "==> uv not found."; \
+			if [[ "$(ALLOW_CURL_BASH)" -eq 1 ]]; then \
+				echo "Installing uv (opt-in via ALLOW_CURL_BASH=1)..."; \
+				curl -fsSL https://astral.sh/uv/install.sh | bash; \
+				NEED_RESTART=1; \
+			else \
+				echo "ERROR: uv missing. Set ALLOW_CURL_BASH=1 to auto-install, or install manually."; \
+				echo "       Docs: https://docs.astral.sh/uv/ and Homebrew: brew install uv"; \
+				exit 1; \
+			fi; \
+		else \
+			echo "==> uv found: $$(command -v uv)"; \
+		fi; \
+		if [[ $$NEED_RESTART -eq 1 ]]; then \
+			echo ""; \
+			echo "⚠️  Tools were installed, but your current shell may not have updated PATH."; \
+			echo "    Restart your terminal (or run: source ~/.zshrc or source ~/.bashrc),"; \
+			echo "    then re-run: make init"; \
+			echo ""; \
+			exit 2; \
+		fi
 
-# jq is required to locate the env path for VS Code settings generation
-ensure-jq:
-	@command -v jq >/dev/null 2>&1 || { \
-	  echo "ERROR: jq not found in PATH (required for 'make settings')."; \
-	  echo "       Install jq (e.g., via Homebrew: brew install jq) and retry."; \
-	  exit 1; \
-	}
+# (deprecated) jq previously used for env-path discovery; no longer required
 
 # --- Micromamba environment ---------------------------------------------------
 
@@ -115,12 +148,22 @@ sync: ensure-tools
 	@echo "==> uv sync (with extras) in env: $(ENV_NAME)"
 	@micromamba run -n "$(ENV_NAME)" uv sync --all-extras
 
+# --- Dependency management ---------------------------------------------------
+
+lock:
+	@echo "==> uv lock in env: $(ENV_NAME)"
+	@micromamba run -n "$(ENV_NAME)" uv lock
+
+update:
+	@echo "==> uv sync --upgrade in env: $(ENV_NAME)"
+	@micromamba run -n "$(ENV_NAME)" uv sync --upgrade
+
 # --- VS Code generation -------------------------------------------------------
 
 vscode: settings tasks launch
 	@echo "==> VS Code files generated under $(VSCODE_DIR)/"
 
-settings: ensure-tools ensure-jq
+settings: ensure-tools
 	@echo "==> Generating $(SETTINGS_JSON) for env: $(ENV_NAME)"
 	@mkdir -p "$(VSCODE_DIR)"
 	@PY_PATH="$$(micromamba run -n "$(ENV_NAME)" python -c 'import sys; print(sys.executable)' 2>/dev/null || command -v python3)"; \
@@ -132,7 +175,7 @@ settings: ensure-tools ensure-jq
 	printf '%s\n' '{' \
 	  '  "python.defaultInterpreterPath": "__PY_PATH__",' \
 	  '  "python.terminal.activateEnvironment": true,' \
-	  '  "python.envFile": "$(ENV_FILE)",' \
+	  '  "python.envFile": "$$${workspaceFolder}/$(ENV_FILE)",' \
 	  '' \
 	  '  "python.testing.pytestEnabled": true,' \
 	  '  "python.testing.pytestArgs": ["tests"],' \
@@ -146,7 +189,7 @@ settings: ensure-tools ensure-jq
 	  '  "ruff.enable": true' \
 	  '}' \
 	  > "$(SETTINGS_JSON)"; \
-	sed -i '' -e "s#__PY_PATH__#$$PY_PATH#g" "$(SETTINGS_JSON)";
+	$(SED_INPLACE) -e "s#__PY_PATH__#$$PY_PATH#g" "$(SETTINGS_JSON)";
 	@echo "==> Wrote $(SETTINGS_JSON)"
 
 tasks: ensure-tools
@@ -158,25 +201,25 @@ tasks: ensure-tools
 	  '    {' \
 	  '      "label": "uv: sync (dev)",' \
 	  '      "type": "shell",' \
-	  '      "command": "uv sync --all-extras",' \
+	  '      "command": "micromamba run -n $(ENV_NAME) uv sync --all-extras",' \
 	  '      "problemMatcher": []' \
 	  '    },' \
 	  '    {' \
 	  '      "label": "test: pytest",' \
 	  '      "type": "shell",' \
-	  '      "command": "pytest",' \
+	  '      "command": "micromamba run -n $(ENV_NAME) pytest",' \
 	  '      "problemMatcher": []' \
 	  '    },' \
 	  '    {' \
 	  '      "label": "lint: ruff",' \
 	  '      "type": "shell",' \
-	  '      "command": "ruff check .",' \
+	  '      "command": "micromamba run -n $(ENV_NAME) ruff check .",' \
 	  '      "problemMatcher": []' \
 	  '    },' \
 	  '    {' \
 	  '      "label": "typecheck: mypy",' \
 	  '      "type": "shell",' \
-	  '      "command": "mypy src",' \
+	  '      "command": "micromamba run -n $(ENV_NAME) mypy src",' \
 	  '      "problemMatcher": []' \
 	  '    }' \
 	  '  ]' \
@@ -196,7 +239,7 @@ launch: ensure-tools
 	  '      "request": "launch",' \
 	  '      "module": "$(PACKAGE_NAME).main",' \
 	  '      "justMyCode": true,' \
-	  '      "envFile": "$(ENV_FILE)"' \
+	  '      "envFile": "$${workspaceFolder}/$(ENV_FILE)"' \
 	  '    },' \
 	  '    {' \
 	  '      "name": "Pytest current file",' \
@@ -206,7 +249,7 @@ launch: ensure-tools
 	  '      "args": [],' \
 	  '      "console": "integratedTerminal",' \
 	  '      "justMyCode": true,' \
-	  '      "envFile": "$(ENV_FILE)"' \
+	  '      "envFile": "$${workspaceFolder}/$(ENV_FILE)"' \
 	  '    }' \
 	  '  ]' \
 	  '}' \
@@ -344,31 +387,50 @@ ensure-src-layout:
 #   mmr   -> micromamba run
 aliases:
 	@set -e; \
-	add_alias() { \
-	  line="$$1"; file="$$2"; \
-	  if [[ -f "$$file" ]] && ! grep -Fxq "$$line" "$$file"; then \
-	    echo "$$line" >> "$$file"; \
-	    echo "Added to $$file: $$line"; \
-	  fi; \
-	}; \
+	if [[ "$(WITH_ALIASES)" -ne 1 ]]; then \
+	  echo "INFO: aliases are opt-in. Run WITH_ALIASES=1 make aliases"; \
+	  exit 0; \
+	fi; \
 	for rc in "$$HOME/.bashrc" "$$HOME/.zshrc"; do \
 	  if [[ -f "$$rc" ]]; then \
-	    add_alias "alias mm=micromamba" "$$rc"; \
-	    add_alias "alias mamba=micromamba" "$$rc"; \
-	    add_alias "alias mma='micromamba activate'" "$$rc"; \
-	    add_alias "alias mmd='micromamba deactivate'" "$$rc"; \
-	    add_alias "alias mme='micromamba env list'" "$$rc"; \
-	    add_alias "alias mmr='micromamba run'" "$$rc"; \
+	    if ! grep -q '^### BEGIN MICROMAMBA ALIASES' "$$rc"; then \
+	      {
+	        echo "### BEGIN MICROMAMBA ALIASES"; \
+	        echo "alias mm=micromamba"; \
+	        echo "alias mamba=micromamba"; \
+	        echo "alias mma='micromamba activate'"; \
+	        echo "alias mmd='micromamba deactivate'"; \
+	        echo "alias mme='micromamba env list'"; \
+	        echo "alias mmr='micromamba run'"; \
+	        echo "### END MICROMAMBA ALIASES"; \
+	      } >> "$$rc"; \
+	      echo "Added alias block to $$rc"; \
+	    else \
+	      echo "Aliases block already present in $$rc (skip)"; \
+	    fi; \
 	  fi; \
 	done; \
 	echo ""; \
-	echo "✅ Common micromamba aliases added (if not already present)."; \
+	echo "✅ Common micromamba aliases ensured (opt-in)."; \
 	echo "👉 Restart your shell or run:"; \
 	echo "   source ~/.bashrc   or   source ~/.zshrc"
+
+uninstall-aliases:
+	@set -e; \
+	for rc in "$$HOME/.bashrc" "$$HOME/.zshrc"; do \
+	  if [[ -f "$$rc" ]]; then \
+	    $(SED_INPLACE) -e '/^### BEGIN MICROMAMBA ALIASES/,/^### END MICROMAMBA ALIASES/d' "$$rc"; \
+	    echo "Removed alias block from $$rc (if present)"; \
+	  fi; \
+	done; \
+	echo "✅ Uninstalled micromamba aliases block."
 
 # --- One-shot setup -----------------------------------------------------------
 
 init: ensure-tools env pyproject ensure-src-layout sync vscode envfile gitignore aliases
+	@echo "==> Pre-check (doctor)"
+	@$(MAKE) doctor || { echo "❌ Pre-check failed"; exit 1; }
+	@echo "==> Provisioning"
 	@echo ""
 	@echo "✅ Done."
 	@echo "Next:"
@@ -377,21 +439,155 @@ init: ensure-tools env pyproject ensure-src-layout sync vscode envfile gitignore
 	@echo ""
 	@echo "Verification:"
 	@echo "  micromamba run -n $(ENV_NAME) python -c \"import sys; print(sys.executable)\""
+	@echo "==> Post-check (doctor)"
+	@$(MAKE) doctor || { echo "❌ Post-check failed"; exit 1; }
 
 # --- Dev commands -------------------------------------------------------------
 
 test: ensure-tools
 	@echo "==> pytest (env: $(ENV_NAME))"
-	@if command -v pytest >/dev/null 2>&1; then micromamba run -n "$(ENV_NAME)" pytest || pytest; else echo "pytest not found, running smoke test"; python3 -c 'assert 1+1==2'; fi
+	@micromamba run -n "$(ENV_NAME)" pytest
 
 lint: ensure-tools
 	@echo "==> ruff (env: $(ENV_NAME))"
-	@if command -v ruff >/dev/null 2>&1; then micromamba run -n "$(ENV_NAME)" ruff check . || ruff check . || true; else echo "ruff not found, skipping lint"; fi
+	@micromamba run -n "$(ENV_NAME)" ruff check .
 
 typecheck: ensure-tools
 	@echo "==> mypy (env: $(ENV_NAME))"
-	@if command -v mypy >/dev/null 2>&1; then micromamba run -n "$(ENV_NAME)" mypy src || mypy src || true; else echo "mypy not found, skipping typecheck"; fi
+	@micromamba run -n "$(ENV_NAME)" mypy src
 
 clean:
 	@echo "==> Cleaning caches"
 	@rm -rf __pycache__ .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov
+
+# --- CI helper ---------------------------------------------------------------
+
+ci-setup:
+	@echo "==> CI Setup"
+	@echo "Assuming tools preinstalled and PATH configured."
+	@echo "You can run: make env sync vscode test"
+
+# --- Makefile lint -----------------------------------------------------------
+
+lint-makefile:
+	@set -e; \
+	BAD=$$(awk 'prev && match($$0,/^[ ]+/) {print NR} {prev = match($$0,/^[^#].*:$$/)}' Makefile); \
+	if [[ -n "$$BAD" ]]; then \
+	  echo "ERROR: space-indented recipe lines at: $$BAD"; \
+	  exit 1; \
+	else \
+	  echo "OK: recipe indentation uses tabs"; \
+	fi
+
+# --- Doctor / Checks ---------------------------------------------------------
+
+doctor:
+	@set -euo pipefail; \
+	FAIL=0; \
+	echo "==> Doctor: prerequisites"; \
+	for tool in micromamba uv curl; do \
+	  if ! command -v $$tool >/dev/null 2>&1; then \
+	    echo "ERROR: $$tool not found in PATH"; \
+	    FAIL=1; \
+	  else \
+	    echo "OK: $$tool found ($$(command -v $$tool))"; \
+	  fi; \
+	done; \
+	if [[ ! -f environment.yml ]]; then \
+	  echo "ERROR: environment.yml missing"; \
+	  FAIL=1; \
+	else \
+	  echo "OK: environment.yml present"; \
+	fi; \
+	echo "==> Doctor: micromamba env ($(ENV_NAME))"; \
+	ENV_PY="$$(micromamba run -n "$(ENV_NAME)" python -c 'import sys; print(sys.executable)' 2>/dev/null || true)"; \
+	if [[ -z "$$ENV_PY" ]]; then \
+	  echo "ERROR: micromamba env '$(ENV_NAME)' not available or python not runnable"; \
+	  FAIL=1; \
+	else \
+	  echo "OK: env python: $$ENV_PY"; \
+	  case "$$ENV_PY" in *"$(ENV_NAME)"*) echo "OK: python path contains env name" ;; *) echo "WARN: python path may not be under the '$(ENV_NAME)' prefix" ;; esac; \
+	fi; \
+	echo "==> Doctor: VS Code JSON validity"; \
+	JSON_CHECKER=$$(command -v python3 || echo ""); \
+	for f in "$(SETTINGS_JSON)" "$(TASKS_JSON)" "$(LAUNCH_JSON)"; do \
+	  if [[ -f "$$f" ]]; then \
+	    if [[ -n "$$JSON_CHECKER" ]]; then \
+	      if ! python3 -m json.tool "$$f" >/dev/null 2>&1; then \
+	        echo "ERROR: invalid JSON: $$f"; \
+	        FAIL=1; \
+	      else \
+	        echo "OK: valid JSON: $$f"; \
+	      fi; \
+	    elif [[ -n "$$ENV_PY" ]]; then \
+	      if ! micromamba run -n "$(ENV_NAME)" python -m json.tool "$$f" >/dev/null 2>&1; then \
+	        echo "ERROR: invalid JSON (env python): $$f"; \
+	        FAIL=1; \
+	      else \
+	        echo "OK: valid JSON (env python): $$f"; \
+	      fi; \
+	    else \
+	      echo "WARN: no python available to validate JSON for $$f"; \
+	    fi; \
+	  else \
+	    echo "INFO: missing $$f (generate with 'make vscode')"; \
+	  fi; \
+	done; \
+	echo "==> Doctor: pyproject.toml validity"; \
+	if [[ -f "pyproject.toml" ]]; then \
+	  if [[ -n "$$JSON_CHECKER" ]]; then \
+	    if ! python3 -c 'import sys;\ntry:\n import tomllib;\n import pathlib;\n tomllib.load(pathlib.Path("pyproject.toml").open("rb"))\n print("OK: valid TOML: pyproject.toml")\nexcept Exception as e:\n print("ERROR: invalid TOML: pyproject.toml", file=sys.stderr);\n raise' >/dev/null 2>&1; then \
+	      FAIL=1; \
+	    fi; \
+	  elif [[ -n "$$ENV_PY" ]]; then \
+	    if ! micromamba run -n "$(ENV_NAME)" python -c 'import sys;\ntry:\n import tomllib;\n import pathlib;\n tomllib.load(pathlib.Path("pyproject.toml").open("rb"))\n print("OK: valid TOML (env python): pyproject.toml")\nexcept Exception as e:\n print("ERROR: invalid TOML (env python): pyproject.toml", file=sys.stderr);\n raise' >/dev/null 2>&1; then \
+	      FAIL=1; \
+	    fi; \
+	  else \
+	    echo "WARN: no python available to validate TOML"; \
+	  fi; \
+	else \
+	  echo "INFO: pyproject.toml missing (generate with 'make pyproject')"; \
+	fi; \
+	echo "==> Doctor: Make variables"; \
+	echo "ENV_NAME=$(ENV_NAME)"; \
+	echo "PYTHON_VERSION=$(PYTHON_VERSION)"; \
+	echo "PACKAGE_NAME=$(PACKAGE_NAME)"; \
+	echo "PROJECT_NAME=$(PROJECT_NAME)"; \
+	echo "PROJECT_VERSION=$(PROJECT_VERSION)"; \
+	echo "ENV_FILE=$(ENV_FILE)"; \
+	echo "UNAME_S=$(UNAME_S)"; \
+	echo "==> Doctor: .env variables ($(ENV_FILE))"; \
+	if [[ -f "$(ENV_FILE)" ]]; then \
+	  while IFS= read -r line; do \
+	    case "$$line" in \#*|'' ) continue ;; esac; \
+	    key="$${line%%=*}"; \
+	    val="$${line#*=}"; \
+	    if [[ -n "$$val" ]]; then masked="$${val:0:4}***"; else masked=""; fi; \
+	    printf 'ENV %s=%s\n' "$$key" "$$masked"; \
+	  done < "$(ENV_FILE)"; \
+	else \
+	  echo "INFO: $(ENV_FILE) missing (create with 'make envfile')"; \
+	fi; \
+	if [[ $$FAIL -ne 0 ]]; then \
+	  echo "❌ Doctor found issues"; \
+	  exit 1; \
+	else \
+	  echo "✅ Doctor passed"; \
+	fi
+
+environment-yml:
+	@if [[ -f environment.yml ]]; then \
+	  echo "==> environment.yml already exists (skip)"; \
+	else \
+	  echo "==> Generating environment.yml (name=$(ENV_NAME), python=$(PYTHON_VERSION))"; \
+	  printf '%s\n' \
+	    'name: $(ENV_NAME)' \
+	    'channels:' \
+	    '  - conda-forge' \
+	    'dependencies:' \
+	    '  - python=$(PYTHON_VERSION)' \
+	    '  - pip' \
+	    > environment.yml; \
+	  echo "==> Wrote environment.yml"; \
+	fi
